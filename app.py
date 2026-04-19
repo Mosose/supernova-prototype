@@ -36,18 +36,17 @@ if st.button("Synthesize Opinions"):
         kmeans = KMeans(n_clusters=3, random_state=42, n_init=10).fit(embeddings)
         df_clean['Cluster'] = kmeans.labels_
         
-        # Add Sentiment
-        df_clean['Urgency (1-10)'] = df_clean["Raw Opinions"].apply(lambda x: round(TextBlob(x).sentiment.subjectivity * 10, 1))
-        
-        # 4. The Output Dashboard
-        st.write("### 📊 Step 2: The Signal Report")
-        
-        for i in range(3):
-            cluster_data = df_clean[df_clean['Cluster'] == i]
-            avg_urgency = round(cluster_data['Urgency (1-10)'].mean(), 1)
+       # A smarter "Urgency" proxy
+def calculate_urgency(text):
+    # Base subjectivity score
+    score = TextBlob(text).sentiment.subjectivity * 10
+    
+    # "Urgency Booster" for high-emotion keywords
+    urgency_words = ['nightmare', 'now', 'urgent', 'must', 'immediately', '!', 'angry']
+    for word in urgency_words:
+        if word in text.lower():
+            score += 3.0 # Boost the score for each urgent word
             
-            with st.expander(f"Signal Group {i+1} (Urgency: {avg_urgency}/10)"):
-                for index, row in cluster_data.iterrows():
-                    st.write(f"- {row['Raw Opinions']}")
-                    
-        st.info("🌟 **Supernova Insight:** Notice how the AI separated the 'Subterranean parking' idea as its own distinct cluster. It didn't erase the minority compromise.")
+    return min(float(score), 10.0) # Cap it at 10.0
+
+df_clean['Urgency (1-10)'] = df_clean["Raw Opinions"].apply(calculate_urgency)
