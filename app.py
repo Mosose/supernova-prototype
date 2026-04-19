@@ -61,15 +61,23 @@ if st.button("Synthesize Opinions"):
         df_clean = df.drop_duplicates().reset_index(drop=True)
         st.success(f"🛡️ Integrity Filter: Removed {len(df) - len(df_clean)} duplicate/bot entries.")
         
-        # AI Processing (Embeddings & Sentiment)
-        model = SentenceTransformer('all-MiniLM-L6-v2')
+        # TITANIUM-PLATED CLEANER
+        # 1. Force convert everything to standard python strings and strip whitespace/hidden characters
+        df_clean["Raw Opinions"] = [str(x).strip() for x in df_clean["Raw Opinions"]]
         
-        # SUPER CLEANER: Force strings, remove trailing spaces, and drop blank rows
-        df_clean["Raw Opinions"] = df_clean["Raw Opinions"].astype(str).str.strip()
-        df_clean = df_clean[df_clean["Raw Opinions"] != ""]
-        df_clean = df_clean[df_clean["Raw Opinions"] != "nan"]
+        # 2. Drop anything that is empty, "nan", "none", or too short to be a real sentence
+        df_clean = df_clean[df_clean["Raw Opinions"].str.lower() != "nan"]
+        df_clean = df_clean[df_clean["Raw Opinions"].str.lower() != "none"]
+        df_clean = df_clean[df_clean["Raw Opinions"].str.len() > 5] # Must be at least 5 characters
         df_clean = df_clean.reset_index(drop=True)
         
+        # 3. Failsafe: Did the CSV formatting delete everything?
+        if len(df_clean) == 0:
+            st.error("🚨 Critical Error: The uploaded file contained no valid text after cleaning. The CSV is likely corrupted by a text editor. Please try re-saving it in Excel or Apple Numbers.")
+            st.stop() # Stops the app before it hits the AI to prevent crashing
+            
+        # AI Processing (Embeddings & Sentiment)
+        model = SentenceTransformer('all-MiniLM-L6-v2')
         embeddings = model.encode(df_clean["Raw Opinions"].tolist())
         
         # Ensure we don't ask for more clusters than we have data points
