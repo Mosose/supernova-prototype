@@ -65,4 +65,36 @@ if st.button("Synthesize Opinions"):
         model = SentenceTransformer('all-MiniLM-L6-v2')
         
         # SUPER CLEANER: Force strings, remove trailing spaces, and drop blank rows
-        df_clean["Raw Opinions"] = df
+        df_clean["Raw Opinions"] = df_clean["Raw Opinions"].astype(str).str.strip()
+        df_clean = df_clean[df_clean["Raw Opinions"] != ""]
+        df_clean = df_clean[df_clean["Raw Opinions"] != "nan"]
+        df_clean = df_clean.reset_index(drop=True)
+        
+        embeddings = model.encode(df_clean["Raw Opinions"].tolist())
+        
+        # Ensure we don't ask for more clusters than we have data points
+        actual_clusters = min(num_clusters, len(df_clean))
+        
+        kmeans = KMeans(n_clusters=actual_clusters, random_state=42, n_init=10).fit(embeddings)
+        df_clean['Cluster'] = kmeans.labels_
+        
+        # Apply the new urgency calculation
+        df_clean['Urgency (1-10)'] = df_clean["Raw Opinions"].apply(calculate_urgency)
+        
+        # 3. The Output Dashboard
+        st.write("### 📊 Step 2: The Signal Report")
+        
+        # Loop through the actual number of clusters requested by the slider
+        for i in range(actual_clusters):
+            cluster_data = df_clean[df_clean['Cluster'] == i]
+            # Handle empty clusters gracefully
+            if not cluster_data.empty:
+                avg_urgency = round(cluster_data['Urgency (1-10)'].mean(), 1)
+                
+                with st.expander(f"Signal Group {i+1} (Urgency: {avg_urgency}/10)"):
+                    for index, row in cluster_data.iterrows():
+                        st.write(f"- {row['Raw Opinions']}")
+        
+        # Only show the demo "Supernova Insight" if using the demo data
+        if uploaded_file is None:
+            st.info("🌟 **Supernova Insight:** Notice how the AI separated the 'Subterranean parking' idea as its own distinct cluster. It didn't erase the minority compromise.")
